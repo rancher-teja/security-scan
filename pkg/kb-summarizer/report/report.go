@@ -65,6 +65,15 @@ type Report struct {
 	Results       []*Group              `json:"results"`
 	// ActualValueMapData is the base64-encoded gzipped-compressed avmap data of all checks.
 	ActualValueMapData string `json:"actual_value_map_data"`
+	Metadata ComplianceMetadata `json:"metadata"`
+}
+
+type ComplianceMetadata struct {
+    STIGVersion      string            `json:"stigVersion,omitempty"`
+    STIGRelease      string            `json:"stigRelease,omitempty"`
+    ProfileName      string            `json:"profileName,omitempty"`
+    BenchmarkVersion string            `json:"benchmarkVersion,omitempty"`
+    Annotations      map[string]string `json:"annotations,omitempty"`
 }
 
 func nodeTypeMapper(nodeType summarizer.NodeType) NodeType {
@@ -146,9 +155,10 @@ func mapNodes(intNodes map[summarizer.NodeType][]string) map[NodeType][]string {
 	return extNodes
 }
 
-func mapReport(internalReport *summarizer.SummarizedReport) (*Report, error) {
+func mapReport(internalReport *summarizer.SummarizedReport, metadata ComplianceMetadata) (*Report, error) {
 	externalReport := &Report{
-		Results: []*Group{},
+		Results:  []*Group{},
+		Metadata: metadata, // Assign the metadata to the report
 	}
 	for _, group := range internalReport.GroupWrappers {
 		extGroup := mapGroup(group)
@@ -169,32 +179,31 @@ func mapReport(internalReport *summarizer.SummarizedReport) (*Report, error) {
 	return externalReport, nil
 }
 
-func GetJSONBytes(data []byte) ([]byte, error) {
+func GetJSONBytes(data []byte, metadata ComplianceMetadata) ([]byte, error) {
 	internalReport := &summarizer.SummarizedReport{}
 	err := json.Unmarshal(data, &internalReport)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling data into internal report: %w", err)
 	}
 	slog.Debug("internal report", "data", internalReport)
-	report, err := mapReport(internalReport)
+	report, err := mapReport(internalReport, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("error mapping report: %w", err)
 	}
-
 	slog.Debug("mapped report", "data", report)
 	extData, err := json.Marshal(report)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling internal report struct: %w", err)
+		return nil, fmt.Errorf("error marshalling report struct: %w", err)
 	}
 
 	return extData, nil
 }
 
-func Get(data []byte) (*Report, error) {
+func Get(data []byte, metadata ComplianceMetadata) (*Report, error) {
 	internalReport := &summarizer.SummarizedReport{}
 	err := json.Unmarshal(data, &internalReport)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling data into internal report: %w", err)
 	}
-	return mapReport(internalReport)
+	return mapReport(internalReport, metadata)
 }
